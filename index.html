@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>강제 동기 레이아웃 api를 사용하여 구현</title>
+  </head>
+  <body>
+    <div id="container" style="width: 100%; min-height: 100vh; display: flex">
+      <div
+        id="card-section"
+        style="
+          display: flex;
+          gap: 10px;
+          width: 100%;
+          justify-content: center;
+          align-items: center;
+        "
+      ></div>
+    </div>
+    <script>
+      const cardSection = document.getElementById('card-section')
+      let selectedCard = null
+
+      const getTranslateXToViewportCenter = (node, type) => {
+        if (node instanceof Element === false) throw new TypeError('node 확인')
+        const rect = node.getBoundingClientRect()
+        const contentCenterX = rect.left + rect.width / 2
+        const viewportCenterX = window.innerWidth / 2
+        if (type === 'rollback') return contentCenterX - viewportCenterX
+        return viewportCenterX - contentCenterX
+      }
+
+      const elements = ['red', 'blue', 'yellow', 'purple', 'green'].forEach(
+        (color, index) => {
+          const newBtn = document.createElement('button')
+          newBtn.className = color
+
+          newBtn.setAttribute(
+            'style',
+            `background: ${color}; height: 200px; width: 150px; border: 0px; border-radius: 20px; transition: transform 0.6s;`
+          )
+
+          newBtn.addEventListener('click', (event) => {
+            if (selectedCard !== null) {
+              // 초기화
+              const moveX = getTranslateXToViewportCenter(
+                selectedCard,
+                'rollback'
+              )
+              selectedCard.style.transform = `translate(${moveX}px)`
+              selectedCard.style.zIndex = 0
+            }
+
+            if (selectedCard === null || selectedCard.className !== color) {
+              selectedCard = event.currentTarget
+              const moveX = getTranslateXToViewportCenter(selectedCard)
+
+              selectedCard.style.transform = `translate(${moveX}px) scale(2)`
+              selectedCard.style.zIndex = 1
+              return
+            }
+
+            selectedCard = null
+          })
+
+          cardSection.append(newBtn)
+        }
+      )
+    </script>
+  </body>
+</html>
