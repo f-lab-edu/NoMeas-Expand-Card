@@ -37,15 +37,6 @@
       const cardSection = document.getElementById('card-section')
       let selectedCard = null
 
-      const getTranslateXToViewportCenter = (node) => {
-        if (node instanceof Element === false) throw new TypeError('node 확인')
-        const rect = node.getBoundingClientRect()
-        const contentCenterX = rect.left + rect.width / 2
-        const viewportCenterX = window.innerWidth / 2
-
-        return viewportCenterX - contentCenterX
-      }
-
       const resetCard = (node) => {
         node.style.transform = `translate3d(0, 0, 0) scale(1)`
         node.style.zIndex = 0
@@ -65,19 +56,19 @@
             // 이전 카드와 현재 카드가 같은 경우
             if (prevSelected === current) {
               selectedCard = null
-              requestAnimationFrame(() => resetCard(current))
+              resetCard(current)
               return
             }
 
-            const moveX = getTranslateXToViewportCenter(current) // read(선택일 때만)
+            // 유지보수가 일어나면서 퍼포먼스 저하를 발생시키기 쉬운 코드
             selectedCard = current
+            const { left, width } = selectedCard.getBoundingClientRect()
+            const moveX = window.innerWidth / 2 - (left + width / 2)
 
-            requestAnimationFrame(() => {
-              //이전에 선택된 카드효과 제거
-              if (prevSelected) resetCard(prevSelected)
-              current.style.transform = `translate3d(${moveX}px, 0, 0) scale(2)`
-              current.style.zIndex = 1
-            })
+            //이전에 선택된 카드효과 제거
+            if (prevSelected) resetCard(prevSelected)
+            current.style.transform = `translate3d(${moveX}px, 0, 0) scale(2)`
+            current.style.zIndex = 1
           })
 
           cardSection.append(newBtn)
