@@ -1,0 +1,187 @@
+---
+slug: 'route'
+title: 'React CSR 초기 로딩부터 라우팅까지'
+description: 'CSR 환경, 초기 로딩부터 라우팅까지의 브라우저 내부 동작 흐름을 정리합니다.'
+tags: ['React', 'CSR', 'React Router']
+date: '2024.12.09'
+readingTime: '3분'
+---
+
+### 1. 콜백 함수 개념 이해
+
+① 콜백 함수(Callback Function)
+
+- 다른 함수(고차함수)의 인자로 전달되어,
+  그 함수 내부에서 실행 시점을 제어받는 함수를 의미한다.
+- 콜백을 받는 함수가 언제 실행할지 결정한다.
+  → 콜백의 핵심은 “제어권”이 외부에 있다.
+
+② 고차함수(Higher-Order Function)
+
+- 함수를 인자로 받거나 반환하는 함수.
+- 내부에서 콜백을 호출하기 때문에
+  콜백 실행 시점, 인자, 순서를 제어할 수 있다.
+
+### 2. 콜백이 중요한 이유
+
+콜백이 필요한 이유는 크게 3가지이다:
+
+1. 제어권(실행 시점) 위임
+
+```js
+// 반복 작업 자체는 동일하지만 “각 반복마다 무엇을 할지”는 다를 때
+const repeat = (n, callback) => {
+  for (let i = 0; i < n; i++) {
+    callback(i) // 콜백 실행 시점은 repeat 내부에서 제어
+  }
+}
+
+repeat(3, (i) => console.log('Hello', i))
+repeat(3, (i) => console.log('Bye', i))
+```
+
+- 로직 흐름(repeat)은 그대로 유지하면서
+- 동작(callback)만 바꿀 수 있음 → 제어권 분리
+
+2. 재사용성과 조립성 향상
+
+```js
+// 배열을 순회하며 내부 로직만 다른 경우
+const map = (array, callback) => {
+  const result = []
+
+  for (let i = 0; i < array.length; i++) {
+    result.push(callback(array[i]))
+  }
+
+  return result
+}
+
+console.log(map([1, 2, 3], (x) => x * 2)) // [2, 4, 6]
+console.log(map([1, 2, 3], (x) => x + 100)) // [101, 102, 103]
+```
+
+- 반복 구조(map)는 공통
+- “값 변환 방식”은 콜백으로 외부에서 교체
+- 효율적으로 재사용 가능 → 함수 조합성 증가
+
+3. 비동기 작업 처리
+
+JS는 단일 스레드이기 때문에
+이벤트/네트워크 작업 완료 시점을 감지하려면 콜백이 필요
+
+```js
+// 네트워크 응답 처리
+const fetchUser = (id, callback) => {
+  setTimeout(() => {
+    const user = { id, name: 'Jun' }
+    callback(user) // 서버 응답 도착 후 실행
+  }, 1000)
+}
+
+fetchUser(1, (user) => {
+  console.log('서버 응답:', user)
+})
+```
+
+- 네트워크는 언제 응답이 도착할지 모르기 때문에
+- “응답 도착 시 실행할 동작”을 콜백으로 전달해야 한다.
+
+### 3. 콜백 기반 구조에서 발생하는 문제
+
+현대 JavaScript와 React 실무에서는 대부분 Promise나 async/await을 사용하기 때문에
+전통적인 의미의 “콜백 지옥”이 직접적으로 나타나는 경우는 많지 않다.
+
+콜백은 매우 유용하지만, 특정 상황에서는 코드 구조가 복잡해지거나 의도와 다르게 동작할 수 있다.
+아래는 콜백이 가진 대표적인 한계들이다.
+이 한계가 Promise·async/await이 등장하는 중요한 배경이 되었다.
+
+1. 콜백 중첩에 따른 가독성 저하
+   콜백으로 여러 작업을 이어 붙이면 자연스럽게 중첩 구조가 생기고,
+   코드 흐름이 한눈에 파악하기 어려워진다.
+
+```js
+login(user, (token) => {
+  getUserProfile(token, (profile) => {
+    getPosts(profile.id, (posts) => {
+      saveLog(posts, () => {
+        console.log('완료')
+      })
+    })
+  })
+})
+```
+
+2. 에러 처리의 분산
+   콜백은 단계별로 직접 에러를 처리해야 한다는 특성이 있어 에러 처리 코드가 곳곳에 흩어지기 쉽다.
+
+```js
+readFile(path, (err, data) => {
+  if (err) return handleError(err)
+
+  parseJSON(data, (err, json) => {
+    if (err) return handleError(err)
+
+    save(json, (err) => {
+      if (err) return handleError(err)
+
+      console.log('완료')
+    })
+  })
+})
+```
+
+3. this 바인딩 손실
+   콜백으로 전달되는 순간 함수는 “어디서 호출되느냐”에 따라 this가 달라질 수 있다.
+   콜백은 실행 주체가 바뀌기 쉬워, 의도한 컨텍스트가 유지되지 않는 문제가 자주 발생한다.
+
+```js
+const obj = {
+  value: 10,
+  print() {
+    console.log(this.value)
+  }
+}
+
+setTimeout(obj.print, 1000)
+// 콜백으로 전달되는 순간 print는 'obj의 메서드'가 아니라 '독립된 함수'가 되어 this를 잃음
+
+setTimeout(obj.print.bind(obj), 1000) // → 10 (해결책 1)
+setTimeout(() => obj.print(), 1000) // → 10 (해결책 2 - 화살표 함수)
+```
+
+### 4. React에 콜백 개념을 적용해본 핵심 정리
+
+1. 왜 자식은 props로 콜백을 받지 않고서는 부모 상태를 변경할 수 없는가?
+
+✔ 컴포넌트는 서로 독립된 모듈(파일)이며 렉시컬 스코프를 공유하지 않는다.
+
+- 부모 state는 **부모 함수 내부 스코프(local environment)**에 존재한다.
+- 자식은 Parent 내부에서 선언된 함수가 아니므로
+  자바스크립트 렉시컬 환경 규칙상 부모의 state 변수에 접근할 수 없다.
+
+✔ useState는 해당 컴포넌트가 제공한 setter로만 상태 변경을 허용한다.
+
+- useState가 반환하는 setter는 “state owner”에게만 제공된다.
+- setter를 props로 전달하지 않는 이상 자식은 부모 상태 변경을 요청할 방법이 없다.
+
+➡️ 즉, 스코프 제한 + 상태 소유권(ownership) 때문에
+자식은 props로 콜백을 받지 않는 이상 부모의 상태를 변경할 수 없다.
+이러한 구조 때문에 React는 상태를 변경해야 하는 컴포넌트가 명확하도록 “Lifting State Up(상태 끌어올리기)” 패턴을 사용한다.
+
+2. 콜백 패턴이 부모-자식의 결합도에 미치는 영향
+
+콜백 패턴은 고차함수의 제어권 구조와 동일하게 적용된다.
+
+✔ 부모의 역할
+
+- “상태를 어떻게 바꿀지” 정의
+
+✔ 자식의 역할
+
+- “언제” 그 전략을 실행할지 결정 (onClick, onChange 등)
+
+부모와 자식은 서로 내부 구조를 전혀 몰라도 협력할 수 있다.
+부모는 자식의 이벤트 구조를 몰라도 되고, 자식은 부모의 상태 구조를 몰라도 된다
+
+➡️ 이는 React가 단방향 데이터 흐름을 유지하면서도 컴포넌트 간 협력을 가능하게 하는 핵심 메커니즘이다.

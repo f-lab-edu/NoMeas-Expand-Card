@@ -1,0 +1,40 @@
+애플리케이션 내에 CSS stylesheet가 없고, html에서 inline-style을 이용해서 화면을 구현한 경우
+
+- 브라우저는 개발자가 정의한 Author CSS가 없음에도 어떻게 화면 렌더링이 되는가?
+  브라우저는 HTML 태그에 대해 기본적으로 적용하는 스타일 규칙 집합인 UA(User Agent) stylesheet를 제공한다.
+  애플리케이션 내에 Author css가 없어도, 브라우저 내부에서 제공하는  
+  최소한의 CSSOM이 있어 애플리케이션에 별도의 CSS 파일이 없어도 렌더링이 가능하다.
+  CRP 과정을 거쳐 화면에 렌더링 될 수 있다.
+
+  User Agent stylesheet에는 `<p`,`<div>`,`<button>`등 html의 기본 태그에 대한  
+  스타일이 정의되어 있다.
+
+```css
+p {
+  border: medium solid;
+}
+
+div {
+  display: block;
+  unicode-bidi: isolate;
+}
+```
+
+dev tools의 Elements 중 styles에서 태그의 속성을 보면 user agent stylesheet라고 표기되어 있다.
+
+- inline style은 어느 과정에서 렌더 트리에 반영되는가?
+  렌더트리 빌드 단계 중 `스타일 계산` 과정에서 inline-style이 노드에 적용된다.
+  스타일 계산 과정은 다음과 같은 순서로 진행된다.
+
+```bash
+DOM Node 순회
+ ├─ UA CSSOM 규칙 매칭
+ ├─ User CSSOM 규칙 매칭
+ ├─ Author CSSOM 규칙 매칭
+ ├─ Inline Style 적용
+ ├─ Cascade (우선순위)
+ ├─ Specificity 계산
+ ├─ Inheritance 처리
+ ├─ Relative 값 계산 (em, rem, %, vh 등)
+ ├─ Computed Style 생성
+```

@@ -1,0 +1,146 @@
+---
+slug: 'route'
+title: 'React CSR 초기 로딩부터 라우팅까지'
+description: 'CSR 환경, 초기 로딩부터 라우팅까지의 브라우저 내부 동작 흐름을 정리합니다.'
+tags: ['React', 'CSR', 'React Router']
+date: '2024.12.09'
+readingTime: '3분'
+---
+
+## Closure
+
+클로저
+내부 함수가 반환되거나 외부에서 참조되어 있는 경우,
+내부 함수가 선언될 당시의 렉시컬 환경이 제거되지 않고 유지되는 현상.
+
+## 클로저 동작원리
+
+함수가 평가될 때, 함수 객체의 내부슬롯 [[Environment]] 에
+해당 함수가 선언된 위치의 상위 렉시컬 환경(Lexical Environment) 이 저장된다.
+
+내부 함수가 외부 함수의 변수를 참조하고 있다면,
+비록 외부 함수의 실행 컨텍스트는 종료되더라도
+그 렉시컬 환경은 내부 함수에 의해 계속 참조되므로
+외부 함수의 환경 레코드(Environment Record) 는 제거되지 않는다.
+
+```js
+const outer = () => {
+  let x = 1
+  const inner = (value) => {
+    x = value
+    return x
+  }
+  return inner
+}
+// inner.[[Environment]] → outer 함수의 렉시컬 환경
+
+const fn = outer()
+fn(10)
+```
+
+### 1. outer() 호출 전 — Global 상태
+
+```
+[ Call Stack ]
+┌──────────────────────┐
+│ Global Execution Ctx │
+└──────────────────────┘
+
+[ Memory - Lexical Environments ]
+Global LE
+└─ { outer: <function> }
+
+# outer.[[Environment]] → Global LE
+```
+
+### 2. outer() 호출 — Outer EC 생성
+
+```
+[ Call Stack ]
+┌──────────────────────┐
+│ Outer Execution Ctx  │  ← 실행 중
+├──────────────────────┤
+│ Global Execution Ctx │
+└──────────────────────┘
+
+[ Memory - Lexical Environments ]
+Outer LE
+└─ { x: 1, inner: <function> }
+      ↑
+inner.[[Environment]] = Outer LE
+```
+
+### 3. outer() 종료 — Outer EC는 제거되지만 LE는 유지
+
+```
+[ Call Stack ]
+┌──────────────────────┐
+│ Global Execution Ctx │
+└──────────────────────┘
+
+[ Memory - Lexical Environments ]
+Outer LE ← inner 함수가 계속 참조 중이므로 살아있음
+
+└─ {x: 1}
+
+inner.[[Environment]] → Outer LE
+fn = inner
+
+```
+
+실행 컨텍스트는 pop 되었지만 렉시컬 환경은 클로저 때문에 유지됨
+
+### 4. fn(10) 실행 — Inner EC 생성
+
+```
+
+[ Call Stack ]
+┌──────────────────────┐
+│ Inner Execution Ctx │ ← 실행 중
+├──────────────────────┤
+│ Global Execution Ctx │
+└──────────────────────┘
+
+[ Memory - Lexical Environments ]
+Inner LE
+└─ { value: 10 }
+↓ (Outer pointer)
+Outer LE
+└─ { x: 1 }
+
+```
+
+스코프 체인: Inner LE → Outer LE → Global LE
+
+### 5. inner 실행 종료 — Outer LE는 여전히 살아 있음
+
+```
+
+[ Call Stack ]
+┌──────────────────────┐
+│ Global Execution Ctx │
+└──────────────────────┘
+
+[ Memory - Lexical Environments ]
+Outer LE ← fn이 여전히 참조 → GC 대상 아님
+└─ { x: 10 }
+
+```
+
+## 클로저 특징
+
+외부 함수의 변수는 외부로 노출된 내부 함수를 통해서만 접근·제어할 수 있으며,
+이 구조를 이용해 정보 은닉 및 캡슐화를 구현할 수 있다.
+
+## 클로저의 문제
+
+내부 함수가 외부 렉시컬 환경을 계속 참조하면,
+필요하지 않은 데이터도 메모리에 남아 있어 메모리 누수로 이어질 수 있다.
+
+내부 함수에 대한 모든 참조를 제거해야
+외부 렉시컬 환경도 더 이상 참조되지 않아
+가비지 컬렉터가 회수할 수 있게 된다.
+
+```
+
+```

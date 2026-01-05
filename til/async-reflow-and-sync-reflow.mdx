@@ -1,0 +1,35 @@
+# 비동기 리플로우와 강제 동기 리플로우
+
+## 브라우저는 왜 리플로우를 미루는가
+
+- 렌더/레이아웃 트리 캐시
+- 스타일 캐시
+- 페인트/래스터 캐시
+
+## 비동기 리플로우의 실행 흐름
+
+- DOM 변경 → dirty marking
+- JS 종료 후 리플로우 수행
+- 캐시 재사용
+
+## 강제 동기 리플로우란 무엇인가
+
+- layout read API의 의미
+- write → read 패턴
+- JS 실행 중 리플로우(Layout) 발생
+
+## DevTools로 확인한 강제 리플로우
+
+- 타임라인 캡처
+- JS 내부 Layout 블록 설명
+
+## 리플로우 쓰래싱(Layout Thrashing)
+
+- 루프 내 강제 리플로우
+- 프레임 드랍 원인
+
+## 회피 전략
+
+- read/write batching
+- requestAnimationFrame
+- transform/opacity 중심 애니메이션

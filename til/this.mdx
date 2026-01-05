@@ -1,0 +1,293 @@
+# this
+
+함수 호출 시, 호출 방식에 따라 결정되는 실행 컨텍스트의 속성
+
+## 일반함수 호출되는 경우 (기본 바인딩)
+
+```js
+function foo() {
+  return this
+}
+
+foo() // globalThis
+```
+
+자바스크립트는 non-strict 환경에서 일반함수로 호출되는 경우,  
+this는 globalThis를 바인딩된다. (모듈에 따라 달라지는 경우도 있음)
+
+```js
+'use strict'
+function foo() {
+  return this
+}
+
+foo() // undefined
+```
+
+strict 환경에서 this는 undefined로 바인딩된다.
+this binding 초기화 과정에서 비엄격 모드인 경우에는 this가 undefined나 null일 경우  
+globalThis로 치환하는 과정이 존재하며, 엄격모드인 경우에는 치환과정이 없다.
+이후에 나오는 모든 예시는 non-strict 기준으로 작성한다.
+
+### 메서드 내에서 호출하는 일반함수
+
+```js
+const obj = {
+  name: 'obj',
+  getName() {
+    function foo() {
+      console.log(this) // window
+    }
+    foo()
+    return this.name // obj
+  }
+}
+
+obj.getName()
+```
+
+위 코드에서 `foo`함수 호출 시 this는 obj 객체가 아닌 window로 바인딩된다.  
+이유는 메서드로서 호출한 것이 아닌 일반함수로 호출되었기 때문에
+기본 바인딩 규칙이 적용된다.
+
+### 콜백
+
+```js
+;[1, 2, 3, 4].forEach(function (x) {
+  console.log(this, x)
+})
+```
+
+콜백으로 전달된 함수는 호출 시 일반 함수 형태로 실행되므로,
+this는 호출 위치와 무관하게 기본 바인딩 규칙을 따른다.
+
+```js
+const obj = {
+  name: 'obj',
+  foo() {
+    console.log(this)
+  }
+}[(1, 2, 3, 4)].forEach(obj.foo)
+```
+
+위 예시에서 고차함수의 인자로 메서드를 넘겨주는 경우 역시 this는 window를 바인딩된다.  
+콜백함수로 넘긴 함수는 고차함수 입장에서는 foo 함수객체이므로 일반함수이며,  
+메서드로 호출된 것이 아닌 일반함수로 호출되었기 떄문이다.
+
+```js
+const obj = {
+  name: 'obj',
+  foo() {
+    console.log(this)
+  }
+}[(1, 2, 3, 4)].forEach(obj.foo, obj) //   {"name": "obj", "foo": f}
+```
+
+Array.prototype.forEach, map, filter와 같은 일부 고차함수는 인자값으로 바인딩할 this를 전달 받는다.  
+메서드의 this를 유지시켜야 하는 경우, 콜백함수 다음 인자값으로 바인딩할 this를 넣어주면,  
+메서드를 소유하고 있는 객체가 바인딩된다.
+
+## 메서드로 호출되는 경우 (암시적 바인딩)
+
+```js
+const obj = {
+  name: 'obj',
+  getName() {
+    return this.name
+  }
+}
+
+obj.getName() // obj
+```
+
+메서드로 호출하는 경우 this는 자신을 소유한 객체이다.  
+객체의 프로퍼티로 참조된 함수가 Reference Type을 통해 호출되면,
+this는 해당 객체로 바인딩된다.
+
+## call/apply/bind 명시적 this 메서드를 이용해 호출하는 경우 (명시적 바인딩)
+
+call, apply, bind는 Reference 기반으로 동적으로 계산되는 this를
+개발자가 명시적으로 제어하기 위해 제공되는 API이다.
+
+```js
+function foo() {
+  return this
+}
+
+const thisArg = { a: 1 }
+foo() // window
+foo.call(thisArgs) // {a:1}
+foo.apply(thisArgs) // {a:1}
+```
+
+call과 apply는 호출 시 인자로 넘긴 this가 바인딩된 함수가 실행된다.
+
+```js
+const obj = {
+  name: 'obj',
+  foo(callback) {
+    setTimeout(callback, 100)
+  }
+}
+
+obj.foo(function () {
+  console.log(this.name)
+})
+```
+
+위 코드에서 foo의 인자로 넘긴 callback은 일반함수로 호출되기 때문에 기본 바인딩 규칙에  
+의해 this는 globalThis이며, this.name은 window.name 빈 문자열이 출력된다.
+
+```js
+const obj = {
+  name: 'obj',
+  foo(callback) {
+    setTimeout(callback.bind(this), 100)
+  }
+}
+
+obj.foo(function () {
+  console.log(this.name)
+})
+```
+
+bind 메서드는 메서드 내부의 중첩함수 또는 콜백함수의 this 불일치 문제를 개선할 때 유용하게 사용된다.  
+사용 시 apply/call과 달리 함수를 호출하지 않고, 첫번째 인자로 전달한 this 바인딩이 교체된 함수를 반환한다.
+
+## 생성자 함수를 이용해 호출하는 경우 (생성자 바인딩)
+
+```js
+function Human(name, age) {
+  this.name = name
+  this.age = age
+}
+
+const jack = new Human('Jack', 20)
+const jhon = new Human('Jhon', 60)
+
+console.log(jack, jhon)
+/*
+Human {name: Jack, age: 20}
+Human {name: Jhon, age: 60}
+*/
+```
+
+new 키워드로 호출된 함수에서는 새로 생성된 객체가 this로 바인딩된다.
+
+## 화살표 함수의 this
+
+화살표 함수는 this binding 과정이 없어 자체 this를 만들지 않기 때문에,
+this를 평가할 때마다 가장 가까운 비-화살표 함수의 this를 그대로 사용한다.
+따라서 외부 함수가 실행되기 전에는 참조할 this가 없고,  
+외부 함수 실행 후에야 그 this가 결정되어 사용된다.
+
+```js
+const obj = {
+  name: 'obj',
+  foo() {
+    const arrow = () => {
+      console.log(this.name)
+    }
+
+    return arrow()
+  }
+}
+obj.foo() // obj
+```
+
+1. foo는 메서드로 호출됨 → foo 실행 컨텍스트 생성 → foo.this = obj
+
+2. foo 실행 중에 arrow 함수 객체가 만들어짐
+
+- 이때 arrow는 own this 없음
+- “this는 바깥 this를 쓴다”라는 성질만 가짐
+
+3. arrow() 호출 시점에 this.name 평가
+
+- arrow는 own this가 없으니 바깥(foo)의 this를 사용
+- foo의 this는 이미 obj로 정해져 있음
+  → "obj" 출력
+
+```js
+const obj = {
+  name: 'obj',
+  bar: () => {
+    console.log(this.name)
+  }
+}
+obj.bar() // ''
+```
+
+obj.bar()는 메서드 호출 형태이지만,
+bar는 화살표 함수이므로 own this binding을 생성하지 않는다.
+따라서 메서드 호출 규칙은 적용되지 않고,
+this는 정의된 스코프의 상위 this를 그대로 사용한다.
+
+### 화살표 함수의 함수 실행 컨텍스트의 this binding은 있을까?
+
+자바스크립트에서 일반 함수가 호출되면 함수 실행 컨텍스트가 생성되고,  
+이 실행 컨텍스트에는 Variable Environment, Lexical Environment, 그리고 This Binding 슬롯이 포함된다.  
+이 슬롯들은 함수 실행에 필요한 정보를 저장한다.
+
+처음에는 화살표 함수 역시 함수이므로,  
+실행 컨텍스트 생성 시 this binding 슬롯이 생성되지만  
+this 초기화 과정만 생략되는 구조라고 생각했다.
+
+즉, this binding은 존재하지만 값이 할당되지 않는 상태라고 가정했다.
+
+하지만 실제로 동작을 확인해보니,  
+화살표 함수의 실행 컨텍스트에는  
+this binding 슬롯 자체가 생성되지 않는다.
+
+만약 this binding 슬롯이 존재하되 초기화만 생략되는 구조였다면,
+call, apply, bind와 같이 this를 명시적으로 바인딩하는 메서드를 호출했을 때
+해당 슬롯에 this 값이 할당되어야 한다.
+
+```js
+const obj = {
+  data: 'obj'
+}
+
+const foo = () => {
+  this.data
+}
+
+foo.call(obj) // undefined
+```
+
+그러나 화살표 함수에 대해 이러한 메서드 호출은 모두 무시된다.
+이는 덮어쓸 this binding 슬롯 자체가 존재하지 않기 때문이다.
+
+ECMAScript 명세에서도 화살표 함수는 this에 대한 로컬 바인딩을 정의하지 않으며,
+this는 실행 시 렉시컬 환경 체인을 따라
+상위 실행 컨텍스트의 this를 참조하도록 정의되어 있다. [ECMA instantiatearrowfunctionexpression](https://tc39.es/ecma262/#sec-runtime-semantics-instantiatearrowfunctionexpression)
+
+## this 초기화 과정
+
+```bash
+1. 함수호출
+2. CallExpression 평가
+3. 함수 실행 컨텍스트 생성
+4. this binding 초기화
+5. 함수 본문 실행
+```
+
+### CallExpression 평가 순서
+
+```bash
+CallExpression 평가 순서
+1. new 연산자 유무 검토
+  1-1. 있는 경우 Construct로 분기
+  1-2. 없는 경우 Call로 분기
+
+2. CallExpression 평가 결과가 Reference인지 Value인지에 따라 분기
+  2-1. 없는 경우, thisValue = undefined
+  2-2. 있는 경우, thisValue = base
+
+3. non-strict/strict 검토
+  3-1. non-strict인 경우, thisValue가 undefined 또는 null인 경우 thisValue = globalThis로 치환
+  3-2. strict인 경우, 치환 없이 thisValue 그대로 사용
+
+4. ExecutionContext.ThisBinding = thisValue
+
+```

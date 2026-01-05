@@ -1,0 +1,38 @@
+# If-None-Match
+
+브라우저는 캐시에 저장된 ETag가 있고,  
+재검증이 필요할 때 저장된 ETag를 If-None-Match에 담아 보낸다.
+
+브라우저의 HTTP 캐시가 이전 응답의 ETag를 보관 중이며,  
+그 리소스를 네트워크로 재검증해야 하는 순간에 자동으로 If-None-Match: “저장된 ETag”를 추가한다.
+서버 ETag가 같으면 304로 본문을 생략해 캐시를 재사용하고, 다르면 200으로 새로 받습니다.
+
+## 자동으로 붙는 주요 상황:
+
+- 캐시 신선도 만료 또는 만료에 가까워 재검증 필요할 때(Expires, Cache-Control: max-age 기반)
+
+- Cache-Control: no-cache, max-age=0, must-revalidate 등으로 “항상 재검증”이 요구될 때
+
+- 일반 새로고침(F5)로 브라우저가 리소스를 네트워크 재검증하는 경우
+
+- fetch/XHR가 기본 캐시 정책(cache: ‘default’ 또는 ‘no-cache’)로 네트워크 확인을 수행할 때
+
+## 붙지 않는(또는 달라지는) 경우:
+
+- 최초 요청이거나 이전 응답이 no-store라 캐시에 보관되지 않은 경우
+
+- 강제 새로고침(Ctrl/Shift+Reload)처럼 캐시를 완전히 우회하는 경우
+
+- 애플리케이션이 Request.cache를 ‘reload’ 또는 ‘no-store’로 지정해 캐시를 쓰지 않는 경우
+
+- Vary로 캐시 키가 달라져 해당 ETag 엔트리를 재사용할 수 없는 경우
+
+- 서비스 워커/프록시가 요청을 가로채 별도 정책으로 처리하는 경우
+
+## 정리하면:
+
+- 자동 전송: ETag가 캐시에 있을 때 → If-None-Match.
+
+- ETag가 없을 때: 보통 If-Modified-Since로 재검증
+
+- 앱 명시 사용: “\*” 등은 애플리케이션이 직접 헤더를 설정할 때만 사용
